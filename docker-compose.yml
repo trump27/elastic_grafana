@@ -1,0 +1,74 @@
+version: "3"
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.4.0
+    environment:
+      - discovery.type=single-node
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+      - ELASTIC_PASSWORD=change   # user: elastic
+      - xpack.security.enabled=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536 # maximum number of open files for the Elasticsearch user, set to at least 65536 on modern systems
+        hard: 65536
+    ports:
+      - 9200:9200
+    volumes:
+      - ./es-data:/usr/share/elasticsearch/data
+    networks:
+      - es-net
+    restart: always
+
+  grafana:
+    image: grafana/grafana:6.4.2
+    ports:
+      - 3000:3000
+    volumes:
+      - ./grafana-data:/var/lib/grafana
+    networks:
+      - es-net
+    restart: always
+
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:7.4.0
+  #   ports:
+  #     - 5601:5601
+  #   environment:
+  #     - ELASTICSEARCH_URL=http://elasticsearch:9200
+  #     - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+  #     - SERVER_BASEPATH=/kibana  # reverse proxy
+  #     - ELASTICSEARCH_USERNAME=elastic
+  #     - ELASTICSEARCH_PASSWORD=pass
+  #   depends_on:
+  #     - elasticsearch
+  #   networks:
+  #     - es-net
+  #   restart: always
+
+  nginx:
+    image: nginx:1.17.4-alpine
+    volumes:
+      - './nginx/nginx.conf:/etc/nginx/nginx.conf:ro'
+      - '/etc/letsencrypt/live/xxxx.yyyy.com/fullchain.pem:/etc/nginx/server.crt:ro'
+      - '/etc/letsencrypt/live/xxxx.yyyy.com/privkey.pem:/etc/nginx/server.key:ro'
+      # - './nginx/server.crt:/etc/nginx/server.crt:ro'
+      # - './nginx/server.key:/etc/nginx/server.key:ro'
+    depends_on:
+      - elasticsearch
+      # - kibana
+      - grafana
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      - es-net
+    restart: always
+
+networks:
+  es-net:
